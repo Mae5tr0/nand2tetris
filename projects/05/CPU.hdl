@@ -39,5 +39,89 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+        Mux16(a=instruction, b=aluOutput, sel=instruction[15], out=instructionMux);
+        Mux16(a=aRegisterOut, b=inM, sel=a, out=memoryMux);
+        
+        // clear instructions if it A command
+        Mux16(
+            a=false, 
+            b=instruction, 
+            sel=instruction[15],
+            out[0]=j3,                                           
+            out[1]=j2,                                           
+            out[2]=j1,                                                       
+            out[3]=writeM,                                           
+            out[4]=d2,            
+            out[5]=d1,  
+            out[6]=c6,            
+            out[7]=c5,            
+            out[8]=c4,            
+            out[9]=c3,            
+            out[10]=c2,            
+            out[11]=c1,  
+            out[12]=a            
+        );
+        
+        Not(in=instruction[15], out=notOpcode);
+        Or(a=notOpcode, b=d1, out=loadARegister);
+        ARegister(in=instructionMux, load=loadARegister, out=aRegisterOut, out[0..14]=addressM);
+        DRegister(in=aluOutput, load=d2, out=dRegisterOut);                     
+
+        ALU(x=dRegisterOut, 
+            y=memoryMux, 
+            zx=c1,
+            nx=c2,
+            zy=c3,
+            ny=c4,
+            f=c5,
+            no=c6, 
+            out=aluOutput, 
+            out=outM,             
+            zr=zr, 
+            ng=ng
+        );
+
+        // Control unit    
+        Not(in=zr, out=notZR);
+        Not(in=ng, out=notNG);
+
+        // JGT => j3 and !zr and !ng
+        And(a=j3, b=notZR, out=jgt1);
+        And(a=jgt1, b=notNG, out=jgt);
+
+        // JEQ => j2 and zr
+        And(a=j2, b=zr, out=jeq);
+
+        // JGE => (j2 and j3) and !ng
+        And(a=j2, b=j3, out=jge1);
+        And(a=jge1, b=notNG, out=jge);
+
+        // JLT => j1 and ng
+        And(a=j1, b=ng, out=jlt);
+
+        // JNE => (j1 and j3) and !zr
+        And(a=j1, b=j3, out=jne1);
+        And(a=jne1, b=notZR, out=jne);
+
+        // JLE => (j1 and j2) and (zr or ng)
+        And(a=j1, b=j2, out=jle1);
+        Or(a=zr, b=ng, out=jle2);
+        And(a=jle1, b=jle2, out=jle);        
+
+        // JMP => (j1 and j2 and j3)
+        And(a=j1, b=j2, out=jmp1);
+        And(a=jmp1, b=j3, out=jmp);
+
+        Or8Way(
+            in[0]=jgt, 
+            in[1]=jeq, 
+            in[2]=jge, 
+            in[3]=jlt, 
+            in[4]=jne, 
+            in[5]=jle, 
+            in[6]=jmp, 
+            out=jmpPC
+        );
+
+        PC(in=aRegisterOut, load=jmpPC, inc=true, reset=reset, out[0..14]=pc);
 }
