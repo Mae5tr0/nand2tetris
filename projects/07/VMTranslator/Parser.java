@@ -24,10 +24,10 @@ public class Parser {
     private String arg1;
     private Integer arg2;
 
-    public Parser(String fileName) {
+    public Parser(String filePath) {
         FileReader fileReader;
         try {
-            fileReader = new FileReader(fileName);
+            fileReader = new FileReader(filePath);
         } catch (FileNotFoundException e) {
             System.out.println("Error reading file:" + e);
             return;
@@ -81,8 +81,7 @@ public class Parser {
                 arg2 = Integer.parseInt(commandParts[2]);
                 break;
             default:
-                System.out.print("Invalid command: " + currentCommand);
-                break;
+                throw new IllegalArgumentException("Invalid command: " + commandParts[0]);
         }
     }
 

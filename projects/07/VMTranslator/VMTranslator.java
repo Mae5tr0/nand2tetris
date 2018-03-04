@@ -1,12 +1,11 @@
 public class VMTranslator {
     public static void main(String[] args) {
-        String fileName = args[0];
-        assert fileName != null;
-        assert !fileName.split("\\.")[1].equals("vm");
+        assert args[0] != null;
 
-        Parser parser = new Parser(fileName);
-        String resultFile = fileName.split("\\.")[0] + ".asm";
-        CodeWriter writer = new CodeWriter(resultFile);
+        String filePath = args[0];
+        Parser parser = new Parser(filePath);
+        String resultPath = filePath.split("\\.")[0] + ".asm";
+        CodeWriter writer = new CodeWriter(resultPath);
 
         while (parser.hasMoreCommands()) {
             parser.advance();
@@ -19,8 +18,7 @@ public class VMTranslator {
                     writer.writePushPop(commandType, parser.arg1(), parser.arg2());
                     break;
                 default:
-                    System.out.print("Invalid command type: " + commandType);
-                    break;
+                    throw new IllegalArgumentException("Invalid command type: " + commandType);
             }
         }
 

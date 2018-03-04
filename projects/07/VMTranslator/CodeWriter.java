@@ -1,26 +1,29 @@
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 
 public class CodeWriter {
-    private BufferedWriter bufferedWriter;
-    HashMap<String, String> segmentPointers;
-
     private static final int TMP_BASE_ADDRESS = 5;
 
-    public CodeWriter(String fileName) {
+    private BufferedWriter bufferedWriter;
+    private HashMap<String, String> segmentPointers;
+    private String fileName;
+    private int counter;
+
+    public CodeWriter(String filePath) {
+        String[] filePathParts = filePath.split("[/.]");
+        fileName = filePathParts[filePathParts.length - 2];
+
         FileWriter fileWriter;
         try {
-            fileWriter = new FileWriter(fileName);
+            fileWriter = new FileWriter(filePath);
         } catch (IOException e) {
             System.out.println("Error reading file:" + e);
             return;
         }
         bufferedWriter = new BufferedWriter(fileWriter);
-
+        counter = 0;
         initializeSegmentPointers();
     }
 
@@ -56,11 +59,13 @@ public class CodeWriter {
             case "or":
                 arithmeticTwoArguments(command);
                 break;
-            case "eg":
+            case "eq":
             case "gt":
             case "lt":
-                arithmeticCompareArguments(command);
+                arithmeticCompare(command);
                 break;
+            default:
+                throw new IllegalArgumentException("Invalid arithmetic command: " + command);
         }
     }
 
@@ -79,12 +84,52 @@ public class CodeWriter {
         w("M=" + arithmeticCommand(command)); //M=f(M,M+1)
     }
 
-    private void arithmeticCompareArguments(String command) {
-        throw new NotImplementedException();
+    private void arithmeticCompare(String command) {
+        decrementSP();
+        w("A=M");
+        w("D=M");       // D = *SP
+        w("A=A-1");
+        w("D=M-D");
+        w("@" + uniqLabel("TRUE"));
+        w("D;" + jumpCommand(command));
+        w("D=0");
+        w("@" + uniqLabel("END"));
+        w("0;JMP");
+        w("(" + uniqLabel("TRUE") + ")");
+        w("D=-1");
+        w("(" + uniqLabel("END") + ")");
+        decrementSP();
+        w("A=M");
+        w("M=D");
+        incrementSP();
+        counter++;
+    }
+
+    private String uniqLabel(String label) {
+        return label + "_" + fileName + "." + counter;
+    }
+
+    private String jumpCommand(String command) {
+        String result;
+        switch (command) {
+            case "eq":
+                result = "JEQ";
+                break;
+            case "gt":
+                result = "JGT";
+                break;
+            case "lt":
+                result = "JLT";
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid jump command: " + command);
+        }
+
+        return result;
     }
 
     private String arithmeticCommand(String command) {
-        String result = "";
+        String result;
         switch (command) {
             case "add":
                 result = "D+M";
@@ -101,12 +146,13 @@ public class CodeWriter {
             case "not":
                 result = "!M";
                 break;
-            case "net":
+            case "neg":
                 result = "-M";
                 break;
+            default:
+                throw new IllegalArgumentException("Invalid arithmetic command: " + command);
         }
 
-        assert !result.equals("");
         return result;
     }
 
@@ -118,6 +164,8 @@ public class CodeWriter {
             case Parser.C_PUSH:
                 writePushCommand(segment, index);
                 break;
+            default:
+                throw new IllegalArgumentException("Invalid command type: " + commandType);
         }
     }
 
@@ -142,9 +190,18 @@ public class CodeWriter {
                 incrementSP();
                 break;
             case "static":
-                throw new NotImplementedException();
+                staticSegment(index);
+                w("D=M");
+                putDtoSP();
+                incrementSP();
+                break;
             case "pointer":
-                throw new NotImplementedException();
+                if (index != 0 && index != 1) { break; }
+                w("@" + segmentPointers.get(pointerSegment(index)));
+                w("D=M");
+                putDtoSP();
+                incrementSP();
+                break;
             case "temp":
                 setIndexToD(TMP_BASE_ADDRESS + index);
                 w("A=D");
@@ -152,6 +209,8 @@ public class CodeWriter {
                 putDtoSP();
                 incrementSP();
                 break;
+            default:
+                throw new IllegalArgumentException("Invalid segment: " + segment);
         }
     }
 
@@ -181,9 +240,22 @@ public class CodeWriter {
                 // nothing
                 break;
             case "static":
-                throw new NotImplementedException();
+                decrementSP();
+                w("A=M");
+                w("D=M");
+
+                staticSegment(index);
+                w("M=D");
+                break;
             case "pointer":
-                throw new NotImplementedException();
+                decrementSP();
+                if (index != 0 && index != 1) { break; }
+                w("A=M");
+                w("D=M");
+
+                w("@" + segmentPointers.get(pointerSegment(index)));
+                w("M=D");
+                break;
             case "temp":
                 setIndexToD(TMP_BASE_ADDRESS + index);
                 w("@addr");
@@ -197,7 +269,17 @@ public class CodeWriter {
                 w("A=M");
                 w("M=D");
                 break;
+            default:
+                throw new IllegalArgumentException("Invalid segment: " + segment);
         }
+    }
+
+    private String pointerSegment(int index) {
+        return index == 0 ? "this" : "that";
+    }
+
+    private void staticSegment(int index) {
+        w("@" + fileName + "." + index);
     }
 
     // SP--
